@@ -13,6 +13,7 @@ CREATE TABLE gwolofs.advent_day3_long(
     is_special smallint,
     gear_id text
 );
+
 INSERT INTO gwolofs.advent_day3_long (gameid, pos, _char, is_special, gear_id)
 SELECT
     gameid,
@@ -42,20 +43,16 @@ runs_coded AS (
     SELECT
         gameid,
         _char,
-        CASE WHEN
-            vert > 0 --directly above/below
-            OR LAG(vert,1) OVER w > 0 --to the left
-            OR LEAD(vert, 1) OVER w > 0 --to the right
-            THEN 1 ELSE 0
-        END AS run_including_x,
-        CASE WHEN regexp_like(_char, '\d') THEN 
-            SUM(run_including_num) OVER w
-        END AS run_id,
+        --special character in line, left, or right
+        vert + LAG(vert,1) OVER w + LEAD(vert,1) OVER w AS run_including_x,
+        --assign id to runs of numbers
+        CASE WHEN _char ~ '\d' THEN SUM(run_including_num) OVER w END AS run_id,
+        --gear id in line, left, or right
         COALESCE(gears, LAG(gears, 1) OVER w, LEAD(gears, 1) OVER w) AS gear_ids
     FROM temp,
     LATERAL (
         SELECT
-            CASE WHEN regexp_like(_char, '\d') THEN 0 ELSE 1 END AS run_including_num,
+            CASE WHEN _char ~ '\d' THEN 0 ELSE 1 END AS run_including_num,
             is_special + COALESCE(prev_row_is_special, 0) + COALESCE(next_row_is_special, 0) AS vert,
             COALESCE(gear_id, prev_row_gear_id, next_row_gear_id) AS gears
     ) AS runs
@@ -75,9 +72,7 @@ valid_runs AS (
 
 SELECT
 (
-    SELECT SUM(num)
-    FROM valid_runs
-    WHERE run_id IS NOT NULL
+    SELECT SUM(num) FROM valid_runs
 ) AS ans_1,
 (
     SELECT SUM(product) FROM (
